@@ -1,0 +1,16 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <title>Note Form</title>
+</head>
+<body>
+<h1 th:if="${note.id == null}">Create Note</h1>
+<h1 th:if="${note.id != null}">Edit Note</h1>
+<form th:action="@{/save}" th:object="${note}" method="post">
+    <input type="hidden" th:field="*{id}" />
+    <label>Title: <input type="text" th:field="*{title}" /></label><br/>
+    <label>Content: <textarea th:field="*{content}"></textarea></label><br/>
+    <button type="submit">Save</button>
+</form>
+</body>
+</html>

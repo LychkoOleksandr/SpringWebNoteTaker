@@ -1,0 +1,18 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <title>Notes</title>
+</head>
+<body>
+<h1>My Notes</h1>
+<a href="/new">Create New Note</a>
+<ul>
+    <li th:each="note : ${notes}">
+        <span th:text="${note.title}"></span>
+        <a th:href="@{/edit/{id}(id=${note.id})}">Edit</a>
+        <a th:href="@{/delete/{id}(id=${note.id})}">Delete</a>
+        <a th:href="@{/share-link/{id}(id=${note.id})}">Get Share Link</a>
+    </li>
+</ul>
+</body>
+</html>
