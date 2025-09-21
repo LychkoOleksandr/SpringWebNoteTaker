@@ -1,11 +1,20 @@
-﻿<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en">
+﻿<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
 <head>
-    <title>Share Link</title>
+    <meta charset="utf-8"/>
+    <title>Посилання для шерінгу</title>
+    <link rel="stylesheet" th:href="@{/css/styles.css}" />
 </head>
 <body>
-<h1>Share Link</h1>
-<p th:text="'Your share link: ' + ${shareLink}"></p>
-<a href="/">Back to Notes</a>
+<h1>Посилання для шерінгу</h1>
+<div th:if="${shareLink != null}">
+    <p>Твоє посилання:</p>
+    <code th:text="${shareLink}">/share/...</code>
+    <p>Можеш скопіювати й відправити іншим.</p>
+</div>
+<div th:if="${shareLink == null}">
+    <p>Нотатку не знайдено або сталася помилка.</p>
+</div>
+<a th:href="@{/}">Назад</a>
 </body>
 </html>

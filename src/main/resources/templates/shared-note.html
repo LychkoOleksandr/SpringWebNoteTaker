@@ -1,11 +1,18 @@
-﻿<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en">
+﻿<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
 <head>
-    <title>Shared Note</title>
+    <meta charset="utf-8"/>
+    <title>Поділена нотатка</title>
+    <link rel="stylesheet" th:href="@{/css/styles.css}" />
 </head>
 <body>
-<h1>Shared Note</h1>
-<h2 th:text="${note.title}"></h2>
-<p th:text="${note.content}"></p>
+<div th:if="${note != null}">
+    <h2 th:text="${note.title} ?: 'Без назви'">Назва</h2>
+    <pre th:text="${note.content}">Текст нотатки</pre>
+</div>
+<div th:if="${note == null}">
+    <p>Нотатку не знайдено.</p>
+</div>
+<a th:href="@{/}">Повернутись</a>
 </body>
 </html>

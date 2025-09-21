@@ -1,18 +1,38 @@
-﻿<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en">
+﻿<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
 <head>
-    <title>Notes</title>
+    <meta charset="UTF-8" />
+    <title>Список нотаток</title>
+    <link rel="stylesheet" th:href="@{/css/styles.css}" />
 </head>
 <body>
-<h1>My Notes</h1>
-<a href="/new">Create New Note</a>
-<ul>
-    <li th:each="note : ${notes}">
-        <span th:text="${note.title}"></span>
-        <a th:href="@{/edit/{id}(id=${note.id})}">Edit</a>
-        <a th:href="@{/delete/{id}(id=${note.id})}">Delete</a>
-        <a th:href="@{/share-link/{id}(id=${note.id})}">Get Share Link</a>
-    </li>
-</ul>
+<header>
+    <h1>Веб-нотатник</h1>
+    <a th:href="@{/new}">Створити нову нотатку</a>
+</header>
+<div th:switch="${notes.size()}">
+    <p th:case="0">Немає нотаток. Створи першу!</p>
+    <p th:case="1">1 нотатка знайдена.</p>
+    <p th:case="*">Знайдено <span th:text="${notes.size()}">0</span> нотаток.</p>
+</div>
+<hr/>
+<div>
+    <ul>
+        <li th:each="note, iterStat : ${notes}">
+            <strong th:text="${note.title} ?: 'Без назви'">Назва нотатки</strong>
+            &nbsp;(<span th:text="${iterStat.index + 1}">1</span>)
+            <span th:if="${#strings.length(note.content) > 100}"> — <em>Довга</em></span>
+            <div>
+                <pre th:text="${note.content}">Текст нотатки</pre>
+            </div>
+            <div>
+                <a th:href="@{|/edit/${note.id}|}">Редагувати</a> |
+                <a th:href="@{|/delete/${note.id}|}">Видалити</a> |
+                <a th:href="@{|/share-link/${note.id}|}">Отримати посилання</a>
+            </div>
+            <hr/>
+        </li>
+    </ul>
+</div>
 </body>
 </html>

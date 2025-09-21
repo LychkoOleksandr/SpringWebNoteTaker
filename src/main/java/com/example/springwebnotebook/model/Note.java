@@ -8,7 +8,9 @@ public class Note {
     private String content;
     private String shareKey;
 
-    public Note() {}
+    public Note() {
+        this.shareKey = UUID.randomUUID().toString();
+    }
 
     public Note(Long id, String title, String content) {
         this.id = id;

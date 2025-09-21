@@ -1,16 +1,27 @@
-﻿<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en">
+﻿<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
 <head>
-    <title>Note Form</title>
+    <meta charset="UTF-8" />
+    <title th:text="${note.id} != null ? 'Редагувати нотатку' : 'Нова нотатка'">Форма нотатки</title>
+    <link rel="stylesheet" th:href="@{/css/styles.css}" />
 </head>
 <body>
-<h1 th:if="${note.id == null}">Create Note</h1>
-<h1 th:if="${note.id != null}">Edit Note</h1>
+<h1 th:text="${note.id} != null ? 'Редагувати нотатку' : 'Створити нотатку'">Форма</h1>
 <form th:action="@{/save}" th:object="${note}" method="post">
     <input type="hidden" th:field="*{id}" />
-    <label>Title: <input type="text" th:field="*{title}" /></label><br/>
-    <label>Content: <textarea th:field="*{content}"></textarea></label><br/>
-    <button type="submit">Save</button>
+    <div>
+        <label for="title">Назва:</label>
+        <input type="text" th:field="*{title}" id="title" placeholder="Введи назву" />
+    </div>
+    <div>
+        <label for="content">Текст:</label><br/>
+        <textarea th:field="*{content}" id="content" rows="10" cols="60"></textarea>
+    </div>
+    <div>
+        <button type="submit">Зберегти</button>
+        <a th:if="${note.id} != null" th:href="@{/}">Скасувати</a>
+        <a th:unless="${note.id} != null" th:href="@{/}">Назад</a>
+    </div>
 </form>
 </body>
 </html>
