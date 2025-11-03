@@ -44,20 +44,21 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-             
+
         <!-- Для Swagger / OpenAPI -->
         <dependency>
              <groupId>org.springdoc</groupId>
              <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
              <version>2.7.0</version>
         </dependency>
-         
+
         <!-- Для підтримки JSON Patch / Merge Patch -->
         <dependency>
              <groupId>com.github.java-json-tools</groupId>
              <artifactId>json-patch</artifactId>
              <version>1.13</version>
         </dependency>
+
     </dependencies>
 
     <build>

@@ -7,125 +7,197 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.fge.jsonpatch.JsonPatch;
 import com.github.fge.jsonpatch.JsonPatchException;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.*;
+import io.swagger.v3.oas.annotations.media.*;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/notes")
-@Tag(name = "Notes API", description = "REST API для роботи з нотатками")
+@Tag(name = "Notes API", description = "CRUD + filter/pagination + patch examples for Note resource")
 public class NoteRestController {
 
-    @Autowired
-    private NoteService noteService;
+    private final NoteService noteService;
+    private final ObjectMapper objectMapper;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    public NoteRestController(NoteService noteService, ObjectMapper objectMapper) {
+        this.noteService = noteService;
+        this.objectMapper = objectMapper;
+    }
 
-    // ---------- CRUD ----------
-
-    @Operation(summary = "Отримати всі нотатки", description = "Повертає всі нотатки з можливістю фільтрації та пагінації.")
+    // ---------------- GET all (filter + pagination) ----------------
+    @Operation(summary = "List notes (supports filter and pagination)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "List of notes returned",
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = Note.class)))),
+            @ApiResponse(responseCode = "400", description = "Bad request (invalid pagination parameters)"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
     @GetMapping
-    public ResponseEntity<List<Note>> getAllNotes(
+    public ResponseEntity<?> listNotes(
             @RequestParam(required = false) String title,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "5") int size) {
-
-        List<Note> notes = noteService.getAllNotes();
-
-        if (title != null && !title.isEmpty()) {
-            notes = notes.stream()
-                    .filter(n -> n.getTitle() != null && n.getTitle().toLowerCase().contains(title.toLowerCase()))
-                    .collect(Collectors.toList());
+            @RequestParam(defaultValue = "5") int size
+    ) {
+        if (page < 0 || size <= 0) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Invalid pagination parameters: page must be >= 0, size > 0"));
         }
 
-        int fromIndex = Math.min(page * size, notes.size());
-        int toIndex = Math.min(fromIndex + size, notes.size());
-        List<Note> paginated = notes.subList(fromIndex, toIndex);
-
-        return ResponseEntity.ok(paginated);
+        List<Note> items = noteService.findWithFilterAndPagination(Optional.ofNullable(title), page, size);
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("page", page);
+        resp.put("size", size);
+        resp.put("items", items);
+        return ResponseEntity.ok(resp);
     }
 
-    @Operation(summary = "Отримати нотатку за ID")
+    // ---------------- GET by ID ----------------
+    @Operation(summary = "Get note by id")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Note found",
+                    content = @Content(schema = @Schema(implementation = Note.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid id format"),
+            @ApiResponse(responseCode = "404", description = "Note not found"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
     @GetMapping("/{id}")
-    public ResponseEntity<Note> getNoteById(@PathVariable Long id) {
-        return noteService.getNoteById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    public ResponseEntity<?> getById(@PathVariable String id) {
+        // parse id with validation -> NumberFormatException handled by ApiExceptionHandler
+        long noteId = Long.parseLong(id);
+
+        return noteService.getNoteById(noteId)
+                .<ResponseEntity<?>>map(note -> ResponseEntity.ok(note))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "Note not found with id = " + id)));
     }
 
-    @Operation(summary = "Створити нову нотатку")
+    // ---------------- CREATE ----------------
+    @Operation(summary = "Create new note")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Created", content = @Content(schema = @Schema(implementation = Note.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request body"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
     @PostMapping
-    public ResponseEntity<Note> createNote(@RequestBody Note note) {
+    public ResponseEntity<?> create(@RequestBody Note note) {
+        if (note == null || note.getTitle() == null || note.getTitle().isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Title is required"));
+        }
         Note created = noteService.createOrUpdateNote(note);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @Operation(summary = "Оновити нотатку повністю")
+    // ---------------- UPDATE (PUT — full) ----------------
+    @Operation(summary = "Replace note (full update)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Replaced", content = @Content(schema = @Schema(implementation = Note.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid input"),
+            @ApiResponse(responseCode = "404", description = "Note not found"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
     @PutMapping("/{id}")
-    public ResponseEntity<Note> updateNote(@PathVariable Long id, @RequestBody Note note) {
-        if (noteService.getNoteById(id).isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    public ResponseEntity<?> replace(@PathVariable String id, @RequestBody Note newNote) {
+        long noteId = Long.parseLong(id);
+        if (newNote == null || newNote.getTitle() == null || newNote.getTitle().isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Title is required"));
         }
-        note.setId(id);
-        Note updated = noteService.createOrUpdateNote(note);
-        return ResponseEntity.ok(updated);
+
+        Optional<Note> existing = noteService.getNoteById(noteId);
+        if (existing.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Note not found with id = " + id));
+        }
+
+        newNote.setId(noteId);
+        Note saved = noteService.createOrUpdateNote(newNote);
+        return ResponseEntity.ok(saved);
     }
 
-    @Operation(summary = "Видалити нотатку")
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteNote(@PathVariable Long id) {
-        if (noteService.getNoteById(id).isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    // ---------------- PATCH (JSON Patch, RFC 6902) ----------------
+    @Operation(summary = "Patch note (JSON Patch RFC6902)", description = "Use Content-Type: application/json-patch+json")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Patched (JSON Patch)", content = @Content(schema = @Schema(implementation = Note.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid patch document"),
+            @ApiResponse(responseCode = "404", description = "Note not found"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @PatchMapping(path = "/{id}", consumes = "application/json-patch+json")
+    public ResponseEntity<?> patchWithJsonPatch(@PathVariable String id, @RequestBody JsonPatch patch) {
+        long noteId = Long.parseLong(id);
+
+        Optional<Note> existingOpt = noteService.getNoteById(noteId);
+        if (existingOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Note not found with id = " + id));
         }
-        noteService.deleteNote(id);
+
+        try {
+            Note existing = existingOpt.get();
+            JsonNode node = objectMapper().convertValue(existing, JsonNode.class);
+            JsonNode patched = patch.apply(node);
+            Note patchedNote = objectMapper().treeToValue(patched, Note.class);
+            patchedNote.setId(noteId);
+            Note saved = noteService.createOrUpdateNote(patchedNote);
+            return ResponseEntity.ok(saved);
+        } catch (JsonPatchException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Invalid JSON Patch: " + e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Unexpected error: " + e.getMessage()));
+        }
+    }
+
+    // ---------------- PATCH (JSON Merge Patch, RFC 7386) ----------------
+    @Operation(summary = "Patch note (JSON Merge Patch RFC7386)", description = "Use Content-Type: application/merge-patch+json")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Patched (Merge Patch)", content = @Content(schema = @Schema(implementation = Note.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid merge patch"),
+            @ApiResponse(responseCode = "404", description = "Note not found"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @PatchMapping(path = "/{id}", consumes = "application/merge-patch+json")
+    public ResponseEntity<?> patchWithMergePatch(@PathVariable String id, @RequestBody JsonNode mergePatch) {
+        long noteId = Long.parseLong(id);
+
+        Optional<Note> existingOpt = noteService.getNoteById(noteId);
+        if (existingOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Note not found with id = " + id));
+        }
+
+        try {
+            Note existing = existingOpt.get();
+            // use ObjectMapper.readerForUpdating to apply merge patch semantics
+            Note patched = objectMapper().readerForUpdating(existing).readValue(mergePatch);
+            patched.setId(noteId);
+            Note saved = noteService.createOrUpdateNote(patched);
+            return ResponseEntity.ok(saved);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Invalid merge patch: " + e.getMessage()));
+        }
+    }
+
+    // ---------------- DELETE ----------------
+    @Operation(summary = "Delete a note by id")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Deleted successfully"),
+            @ApiResponse(responseCode = "404", description = "Note not found"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> delete(@PathVariable String id) {
+        long noteId = Long.parseLong(id);
+
+        Optional<Note> existing = noteService.getNoteById(noteId);
+        if (existing.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Note not found with id = " + id));
+        }
+        noteService.deleteNote(noteId);
         return ResponseEntity.noContent().build();
     }
 
-    // ---------- PATCH (часткове оновлення) ----------
-
-    @Operation(summary = "Часткове оновлення нотатки (RFC 6902)", description = "JSON Patch — список операцій add, remove, replace, etc.")
-    @PatchMapping(value = "/{id}", consumes = "application/json-patch+json")
-    public ResponseEntity<Note> patchNote(@PathVariable Long id, @RequestBody JsonPatch patch) {
-        Optional<Note> noteOpt = noteService.getNoteById(id);
-        if (noteOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-
-        try {
-            Note note = noteOpt.get();
-            JsonNode patched = patch.apply(objectMapper.convertValue(note, JsonNode.class));
-            Note updated = objectMapper.treeToValue(patched, Note.class);
-            updated.setId(id);
-            noteService.createOrUpdateNote(updated);
-            return ResponseEntity.ok(updated);
-        } catch (JsonPatchException | IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    @Operation(summary = "Часткове оновлення нотатки (RFC 7386)", description = "JSON Merge Patch — передайте тільки поля, які треба змінити.")
-    @PatchMapping(value = "/merge/{id}", consumes = "application/merge-patch+json")
-    public ResponseEntity<Note> mergePatchNote(@PathVariable Long id, @RequestBody JsonNode patch) {
-        Optional<Note> noteOpt = noteService.getNoteById(id);
-        if (noteOpt.isEmpty()) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-
-        try {
-            JsonNode existing = objectMapper.convertValue(noteOpt.get(), JsonNode.class);
-            JsonNode merged = objectMapper.readerForUpdating(existing).readValue(patch);
-            Note updated = objectMapper.treeToValue(merged, Note.class);
-            updated.setId(id);
-            noteService.createOrUpdateNote(updated);
-            return ResponseEntity.ok(updated);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
+    // helper to get a fresh ObjectMapper (you can also inject one via constructor if preferred)
+    private ObjectMapper objectMapper() {
+        return this.objectMapper;
     }
 }
