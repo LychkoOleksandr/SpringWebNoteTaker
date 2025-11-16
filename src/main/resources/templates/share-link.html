@@ -9,7 +9,7 @@
 <h1>Посилання для шерінгу</h1>
 <div th:if="${shareLink != null}">
     <p>Твоє посилання:</p>
-    <code th:text="${shareLink}">/share/...</code>
+    <a th:href="/share/${shareLink}" th:text="${shareLink}">/share/...</a>
     <p>Можеш скопіювати й відправити іншим.</p>
 </div>
 <div th:if="${shareLink == null}">

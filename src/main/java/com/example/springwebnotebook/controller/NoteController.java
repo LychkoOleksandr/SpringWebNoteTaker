@@ -1,11 +1,15 @@
 package com.example.springwebnotebook.controller;
 
 import com.example.springwebnotebook.model.Note;
+import com.example.springwebnotebook.repository.LinkPair;
 import com.example.springwebnotebook.service.NoteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Controller
 @RequestMapping("/")
@@ -23,18 +27,34 @@ public class NoteController {
     @GetMapping("/new")
     public String newNote(Model model) {
         model.addAttribute("note", new Note());
+        model.addAttribute("notes", noteService.getAllNotes());
+        model.addAttribute("linkedIds", new ArrayList<Long>());
         return "note-form";
     }
 
     @GetMapping("/edit/{id}")
     public String editNote(@PathVariable Long id, Model model) {
         noteService.getNoteById(id).ifPresent(note -> model.addAttribute("note", note));
+        model.addAttribute("notes", noteService.getAllNotes());
+
+        List<Long> linkedIds = noteService.getNoteById(id)
+                .map(Note::getLinks)
+                .orElse(List.of())
+                .stream()
+                .map(LinkPair::getId)
+                .toList();
+
+        model.addAttribute("linkedIds", linkedIds);
         return "note-form";
     }
 
     @PostMapping("/save")
     public String saveNote(@ModelAttribute Note note) {
-        noteService.createOrUpdateNote(note);
+        if (noteService.getNoteById(note.getId()).isPresent()){
+            noteService.updateNote(note);
+        } else {
+            noteService.createNote(note);
+        }
         return "redirect:/";
     }
 

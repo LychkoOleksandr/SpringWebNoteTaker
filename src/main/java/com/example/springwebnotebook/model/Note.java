@@ -1,23 +1,22 @@
 package com.example.springwebnotebook.model;
 
+import com.example.springwebnotebook.repository.LinkPair;
+import org.springframework.data.util.Pair;
+
+import java.util.List;
 import java.util.UUID;
 
 public class Note {
+
     private Long id;
     private String title;
     private String content;
     private String shareKey;
+    private List<LinkPair> links;
 
     public Note() {
         this.shareKey = UUID.randomUUID().toString();
-    }
-
-    public Note(Long id, String title, String content) {
-        this.id = id;
-        this.title = title;
-        this.content = content;
-        this.shareKey = UUID.randomUUID().toString();
-    }
+    };
 
     // Getters and Setters
     public Long getId() {
@@ -50,5 +49,13 @@ public class Note {
 
     public void setShareKey(String shareKey) {
         this.shareKey = shareKey;
+    }
+
+    public List<LinkPair> getLinks() {
+        return links;
+    }
+
+    public void setLinks(List<LinkPair> links) {
+        this.links = links;
     }
 }

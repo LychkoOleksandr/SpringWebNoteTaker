@@ -18,10 +18,81 @@
         <textarea th:field="*{content}" id="content" rows="10" cols="60"></textarea>
     </div>
     <div>
+        <label>Посилання на інші нотатки:</label>
+
+        <!-- існуючі посилання -->
+        <ul>
+            <li th:each="link, iStat : *{links}">
+                <input type="hidden" th:field="*{links[__${iStat.index}__].id}" />
+                <input type="hidden" th:field="*{links[__${iStat.index}__].title}" />
+
+                <a th:href="@{/edit/{id}(id=${link.id})}">
+                    <span th:text="${link.title}"></span>
+                </a>
+                (<small>ID: <span th:text="${link.id}"></span></small>)
+
+                <button type="button"
+                        th:onclick="'removeLink(' + ${iStat.index} + ')'">
+                    Видалити
+                </button>
+            </li>
+        </ul>
+
+        <!-- Додавання нового посилання -->
+        <div style="margin-top:10px;">
+            <label for="newLink">Додати посилання:</label>
+            <select id="newLink">
+                <option value="">-- виберіть нотатку --</option>
+                <option th:each="note, iterStat : ${notes}"
+                        th:value="${note.id}"
+                        th:text="${note.title}"
+                        th:if="${linkedIds != null and !linkedIds.contains(note.id)}">
+                </option>
+            </select>
+
+            <button type="button" onclick="addLink()">Додати</button>
+        </div>
+    </div>
+    <div>
         <button type="submit">Зберегти</button>
         <a th:if="${note.id} != null" th:href="@{/}">Скасувати</a>
         <a th:unless="${note.id} != null" th:href="@{/}">Назад</a>
     </div>
 </form>
+
+<script>
+    function removeLink(index) {
+        // Видаляємо li з DOM — при submit його більше не буде
+        const listItem = document.querySelectorAll("ul li")[index];
+        if (listItem) listItem.remove();
+    }
+
+    function addLink() {
+        const select = document.getElementById("newLink");
+        const id = select.value;
+        const title = select.options[select.selectedIndex].text;
+
+        if (!id) return;
+
+        // Створюємо новий елемент списку
+        const ul = document.querySelector("ul");
+        const i = ul.children.length;
+
+        const li = document.createElement("li");
+        li.innerHTML = `
+            <input type="hidden" name="links[${i}].id" value="${id}" />
+            <input type="hidden" name="links[${i}].title" value="${title}" />
+            <span>${title}</span> (<small>ID: ${id}</small>)
+            <button type="button" onclick="removeLink(${i})" style="margin-left:10px;">
+                Видалити
+            </button>
+        `;
+
+        ul.appendChild(li);
+
+        // Скидаємо вибір
+        select.value = "";
+    }
+</script>
 </body>
 </html>

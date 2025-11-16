@@ -1,6 +1,7 @@
 package com.example.springwebnotebook.controller;
 
 import com.example.springwebnotebook.model.Note;
+import com.example.springwebnotebook.service.IService;
 import com.example.springwebnotebook.service.NoteService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,10 +21,10 @@ import java.util.*;
 @Tag(name = "Notes API", description = "CRUD + filter/pagination + patch examples for Note resource")
 public class NoteRestController {
 
-    private final NoteService noteService;
+    private final IService noteService;
     private final ObjectMapper objectMapper;
 
-    public NoteRestController(NoteService noteService, ObjectMapper objectMapper) {
+    public NoteRestController(IService noteService, ObjectMapper objectMapper) {
         this.noteService = noteService;
         this.objectMapper = objectMapper;
     }
@@ -70,7 +71,7 @@ public class NoteRestController {
         long noteId = Long.parseLong(id);
 
         return noteService.getNoteById(noteId)
-                .<ResponseEntity<?>>map(note -> ResponseEntity.ok(note))
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("error", "Note not found with id = " + id)));
     }
@@ -84,11 +85,18 @@ public class NoteRestController {
     })
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Note note) {
-        if (note == null || note.getTitle() == null || note.getTitle().isBlank()) {
+        if (note == null ||
+            note.getTitle() == null ||
+            note.getTitle().isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Title is required"));
         }
-        Note created = noteService.createOrUpdateNote(note);
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        Number created = noteService.createNote(note);
+        return created.intValue() != 0 ?
+                ResponseEntity.status(HttpStatus.CREATED)
+                .body(Map.of("success", "id of created note " + created))
+                :
+                ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", "note hasn't been created"));
     }
 
     // ---------------- UPDATE (PUT — full) ----------------
@@ -102,17 +110,24 @@ public class NoteRestController {
     @PutMapping("/{id}")
     public ResponseEntity<?> replace(@PathVariable String id, @RequestBody Note newNote) {
         long noteId = Long.parseLong(id);
-        if (newNote == null || newNote.getTitle() == null || newNote.getTitle().isBlank()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Title is required"));
+        if (newNote == null ||
+            newNote.getTitle() == null ||
+            newNote.getTitle().isBlank()
+        ) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Title is required"));
         }
 
         Optional<Note> existing = noteService.getNoteById(noteId);
         if (existing.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Note not found with id = " + id));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Note not found with id = " + id));
         }
 
-        newNote.setId(noteId);
-        Note saved = noteService.createOrUpdateNote(newNote);
+        Optional<Note> saved = noteService.updateNote(newNote);
+
+        if(saved.isEmpty()) return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", "Couldn't update this note" + id));
         return ResponseEntity.ok(saved);
     }
 
@@ -139,7 +154,9 @@ public class NoteRestController {
             JsonNode patched = patch.apply(node);
             Note patchedNote = objectMapper().treeToValue(patched, Note.class);
             patchedNote.setId(noteId);
-            Note saved = noteService.createOrUpdateNote(patchedNote);
+            Optional<Note> saved = noteService.updateNote(patchedNote);
+            if(saved.isEmpty()) return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Couldn't update this note" + id));
             return ResponseEntity.ok(saved);
         } catch (JsonPatchException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Invalid JSON Patch: " + e.getMessage()));
@@ -170,7 +187,9 @@ public class NoteRestController {
             // use ObjectMapper.readerForUpdating to apply merge patch semantics
             Note patched = objectMapper().readerForUpdating(existing).readValue(mergePatch);
             patched.setId(noteId);
-            Note saved = noteService.createOrUpdateNote(patched);
+            Optional<Note> saved = noteService.updateNote(patched);
+            if(saved.isEmpty()) return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Couldn't update this note" + id));
             return ResponseEntity.ok(saved);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Invalid merge patch: " + e.getMessage()));
